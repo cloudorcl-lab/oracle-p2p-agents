@@ -1,0 +1,15 @@
+{
+  "_comment": "Drop this file into the ROOT of your p2p_skill_package folder.",
+  "_comment2": "Claude Code reads .mcp.json automatically on project open.",
+  "_comment3": "Replace YOUR_GITHUB_PAT with your actual token before saving.",
+
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@latest"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PAT}"
+      }
+    }
+  }
+}

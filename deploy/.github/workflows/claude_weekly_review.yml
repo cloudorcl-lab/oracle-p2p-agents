@@ -1,0 +1,61 @@
+name: Claude Code — Nightly Skill Review
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'     # Every Monday 6am UTC (start of work week)
+  workflow_dispatch:         # Also allows manual trigger from GitHub Actions tab
+
+jobs:
+  skill-review:
+    runs-on: ubuntu-latest
+
+    if: github.actor != 'github-actions[bot]'
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          prompt: |
+            You are reviewing the Oracle Fusion P2P skill package.
+
+            Read CLAUDE.md for project rules first.
+
+            Then do the following checks across all files in skills/:
+
+            1. CONSISTENCY CHECK — Do all 7 skill files (PR1–PR7) follow the same
+               structure: Purpose, Trigger, Required Inputs, API Call Sequence,
+               Agent Output Payload, Error Handling? Flag any that are missing sections.
+
+            2. CROSS-REFERENCE CHECK — Does the output payload of each agent exactly
+               match what the next agent says it expects as input?
+               Check the chain: PR1→PR2→PR3→PR4→PR5→PR6→PR7.
+               Flag any mismatches in field names or types.
+
+            3. RETRY COVERAGE CHECK — Does src/oracle_retry.py cover all HTTP status
+               codes mentioned in the error handling tables across the 7 skill files?
+               Flag any error conditions in skill files that have no retry logic.
+
+            4. CONFIG COVERAGE — Does config/config.yaml have entries for every
+               timeout, threshold, and SLA value referenced in the skill files?
+               Flag anything hardcoded in skill files that should be in config.
+
+            For each issue found: create a GitHub Issue with title, file name,
+            line reference, and recommended fix. Label it "skill-gap".
+
+            If no issues found: post a single comment on this run confirming
+            "Weekly review complete — no gaps found."
+
+          claude_args: |
+            --max-turns 20
+            --model claude-sonnet-4-6
