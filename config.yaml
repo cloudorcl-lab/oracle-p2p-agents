@@ -1,0 +1,22 @@
+oracle:
+  host: "${ORACLE_HOST}"
+  base_url: "https://{host}/fscmRestApi/resources/11.13.18.05"
+  auth_type: basic                # basic | oauth (oauth requires IDCS setup)
+  rest_framework_version: "3"
+
+agents:
+  build_order: [PR7, PR1, PR2, PR5, PR6, PR4, PR3]
+  retry:
+    max_attempts: 3
+    backoff_seconds: 5
+    idempotent_check: true        # GET-before-POST on 500/504/timeout
+
+redis:
+  host: "${REDIS_HOST}"
+  port: 6379
+  ttl_seconds: 86400             # 24h ID cache
+
+database:
+  host: "${DB_HOST}"
+  port: 5432
+  name: "${DB_NAME}"

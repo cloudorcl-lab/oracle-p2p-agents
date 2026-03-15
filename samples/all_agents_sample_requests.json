@@ -1,0 +1,163 @@
+{
+  "_comment": "Sample requests for all 7 P2P agents. Replace all values with your actual Oracle data.",
+
+  "PR1_supplier_onboarding": {
+    "supplier_name": "Acme Technology Corp",
+    "tax_id": "12-3456789",
+    "duns_number": "123456789",
+    "supplier_type": "CORPORATION",
+    "contact": {
+      "first_name": "Jane", "last_name": "Smith",
+      "email": "j.smith@acme.com", "phone": "+1-512-555-0100"
+    },
+    "address": {
+      "line1": "100 Innovation Drive", "city": "Austin",
+      "state": "TX", "postal_code": "78701", "country": "US"
+    },
+    "payment_terms": "NET30",
+    "bank": {
+      "name": "Chase Bank", "branch": "Austin Main",
+      "account_number": "XXXXXXXXXX", "routing_number": "021000021",
+      "account_type": "CHECKING", "swift": "CHASUS33"
+    },
+    "qualifications": [{
+      "type": "INSURANCE",
+      "cert_number": "INS-2026-001",
+      "issue_date": "2026-01-01",
+      "expiry_date": "2026-12-31",
+      "issuing_authority": "Travelers Insurance Co."
+    }],
+    "procurement_bu": "Vision Operations"
+  },
+
+  "PR2_requisition_creation": {
+    "requester_email": "john.requester@company.com",
+    "requisitioning_bu": "Vision Operations",
+    "description": "Desktop computers for IT department Q2 2026",
+    "justification": "Annual hardware refresh — 5 units end of life",
+    "lines": [{
+      "line_type": "Goods",
+      "item_number": "AS54888",
+      "uom": "Each",
+      "quantity": 5,
+      "need_by_date": "2026-04-30",
+      "destination_type": "Expense",
+      "org_code": "V1",
+      "deliver_to_location": "V1-New York City",
+      "supplier_name": "Acme Technology Corp",
+      "supplier_site": "ACME_PURCHASING",
+      "urgent": false,
+      "distributions": [
+        {"distribution_number": 1, "quantity": 3, "cost_center": "1100"},
+        {"distribution_number": 2, "quantity": 2, "cost_center": "1200"}
+      ]
+    }]
+  },
+
+  "PR3_sourcing_event": {
+    "negotiation_type": "RFQ",
+    "title": "RFQ — Desktop Computers Q2 2026",
+    "requisition_line_ids": [300100546441809],
+    "buyer_id": 300100178696854,
+    "response_due_date": "2026-04-01T17:00:00Z",
+    "open_bidding_date": "2026-03-18T08:00:00Z",
+    "award_by_line": true,
+    "invited_suppliers": [
+      {"supplier_id": 300100099887766, "site_id": 300100099887767, "email": "quotes@acme.com"},
+      {"supplier_id": 300100099887770, "site_id": 300100099887771, "email": "quotes@techsupply.com"}
+    ],
+    "requirements": [{
+      "type": "COMPLIANCE",
+      "description": "Provide current ISO 9001 certificate",
+      "mandatory": true,
+      "response_type": "FILE"
+    }]
+  },
+
+  "PR4_agreement_creation": {
+    "agreement_type": "BPA",
+    "supplier_id": 300100099887766,
+    "supplier_site_id": 300100099887767,
+    "start_date": "2026-04-01",
+    "end_date": "2027-03-31",
+    "agreement_amount": 100000.00,
+    "currency": "USD",
+    "payment_terms": "NET30",
+    "procurement_bu": "Vision Operations",
+    "lines": [{
+      "item_id": 300100012345678,
+      "item_number": "AS54888",
+      "uom": "Each",
+      "unit_price": 1050.00,
+      "committed_quantity": 100,
+      "price_tiers": [
+        {"tier": 1, "min_qty": 1, "max_qty": 50, "price": 1100.00},
+        {"tier": 2, "min_qty": 51, "max_qty": 999, "price": 1050.00}
+      ],
+      "allow_price_override": false,
+      "match_approval_level": "THREE_WAY"
+    }]
+  },
+
+  "PR5_purchase_order": {
+    "supplier_id": 300100099887766,
+    "supplier_site_id": 300100099887767,
+    "buyer_id": 300100178696854,
+    "currency": "USD",
+    "bill_to_location_id": 204,
+    "ship_to_location_id": 204,
+    "payment_terms_id": 1001,
+    "description": "PO for desktop computers — Q2 2026",
+    "requisition_header_id": 300100546441808,
+    "lines": [{
+      "item_id": 300100012345678,
+      "quantity": 5,
+      "uom": "Each",
+      "unit_price": 1050.00,
+      "need_by_date": "2026-04-30",
+      "agreement_id": 300100011223344,
+      "agreement_line_id": 300100011223345,
+      "requisition_line_id": 300100546441809,
+      "schedules": [{
+        "schedule_number": 1,
+        "quantity": 5,
+        "need_by_date": "2026-04-30",
+        "ship_to_org_id": 204,
+        "distributions": [{
+          "distribution_number": 1,
+          "quantity_ordered": 5,
+          "charge_account_id": 300100055667788
+        }]
+      }]
+    }]
+  },
+
+  "PR6_receiving": {
+    "po_header_id": 300100300400500,
+    "receipt_date": "2026-04-28",
+    "received_by_email": "warehouse.manager@company.com",
+    "receiving_org_id": 204,
+    "supplier_id": 300100099887766,
+    "supplier_site_id": 300100099887767,
+    "packing_slip": "PKG-2026-00123",
+    "lines": [{
+      "po_line_id": 300100300400501,
+      "po_schedule_id": 300100300400502,
+      "item_id": 300100012345678,
+      "quantity_received": 5,
+      "uom": "Each",
+      "destination_type": "EXPENSE",
+      "destination_org_id": 204,
+      "inspection_required": true,
+      "inspection_result": "ACCEPTED",
+      "quantity_accepted": 5,
+      "quantity_rejected": 0
+    }]
+  },
+
+  "PR7_monitor_query": {
+    "query_type": "full_lifecycle",
+    "pr_number": "10505856",
+    "_comment": "PR7 is read-only. Pass a PR number or PO number to get full lifecycle status."
+  }
+}

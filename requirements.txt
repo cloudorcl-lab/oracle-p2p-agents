@@ -1,0 +1,7 @@
+# Oracle Fusion P2P Agents - Python dependencies
+requests>=2.31.0
+redis>=5.0.0
+psycopg2-binary>=2.9.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+tenacity>=8.2.0

@@ -1,0 +1,10 @@
+.env
+.env.local
+*.pyc
+__pycache__/
+*.log
+log.txt
+*.egg-info/
+dist/
+build/
+.DS_Store
