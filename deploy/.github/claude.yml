@@ -21,7 +21,7 @@ jobs:
       contents: write        # read files, commit changes
       pull-requests: write   # open PRs, post comments
       issues: write          # reply to issues
-      id-token: write        # required for OIDC authentication
+      id-token: write        # required for OIDC authentication - rev1
 
     steps:
       - name: Checkout repository
