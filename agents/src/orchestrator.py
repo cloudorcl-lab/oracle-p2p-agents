@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 
 from auth.oracle_auth import load_config, test_connection
@@ -26,6 +27,7 @@ from agents.pr4_agreement      import PR4AgreementAgent
 from agents.pr5_purchase_order import PR5PurchaseOrderAgent
 from agents.pr6_receiving      import PR6ReceivingAgent
 from agents.pr7_monitor        import PR7LifecycleMonitor
+from run_report import AgentRunRecord, generate_report
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,56 +36,96 @@ logging.basicConfig(
 logger = logging.getLogger("orchestrator")
 
 
-async def run_full_p2p(request: dict, transaction_id: str) -> dict:
+async def run_full_p2p(request: dict, transaction_id: str,
+                       request_file: str = "—",
+                       report_dir: Path | None = None) -> dict:
     """
     Runs: PR1 → PR2 → [PR3 if sourcing] → [PR4 if agreement] → PR5 → PR6
     PR3 and PR4 are optional — include "sourcing" or "agreement" keys in request.
     PR7 Monitor always runs at the end for gap detection.
+
+    Writes a Markdown run report to report_dir (default: runs/ next to this file).
     """
-    config = load_config()
-    results = {}
+    config     = load_config()
+    results    = {}
+    run_start  = time.monotonic()
+    run_records: list[AgentRunRecord] = []
+
+    first_error: Exception | None = None
+
+    async def _run_agent(agent_class, key: str, inputs: dict) -> None:
+        """
+        Run one agent, capture timing + API call count.
+        On failure, records the error and sets first_error so the report
+        still generates, then subsequent agents are skipped.
+        """
+        nonlocal first_error
+        if first_error is not None:
+            return   # a prior agent failed — skip downstream agents
+
+        rec   = AgentRunRecord(key)
+        agent = agent_class(transaction_id, config)
+        logger.info(f"=== Running {key}: {agent_class.__name__} ===")
+        try:
+            result = await agent.run(inputs)
+            rec.complete(result, agent._api_calls)
+            results[key] = result
+        except Exception as exc:
+            rec.fail(str(exc), agent._api_calls)
+            logger.error(f"[{transaction_id}] {key} FAILED: {exc}")
+            first_error = exc
+        finally:
+            run_records.append(rec)
 
     # ── PR1: Supplier Registration ────────────────────────────────────────
     if "supplier" in request:
-        logger.info("=== Running PR1: Supplier Registration ===")
-        agent   = PR1SupplierAgent(transaction_id, config)
-        results["PR1"] = await agent.run(request["supplier"])
+        await _run_agent(PR1SupplierAgent, "PR1", request["supplier"])
 
     # ── PR2: Requisition ──────────────────────────────────────────────────
     if "requisition" in request:
-        logger.info("=== Running PR2: Requisition ===")
-        agent   = PR2RequisitionAgent(transaction_id, config)
-        results["PR2"] = await agent.run(request["requisition"])
+        await _run_agent(PR2RequisitionAgent, "PR2", request["requisition"])
 
     # ── PR3: Sourcing / Negotiation (optional — competitive sourcing) ─────
     if "sourcing" in request:
-        logger.info("=== Running PR3: Sourcing / Negotiation ===")
-        agent   = PR3SourcingAgent(transaction_id, config)
-        results["PR3"] = await agent.run(request["sourcing"])
+        await _run_agent(PR3SourcingAgent, "PR3", request["sourcing"])
 
     # ── PR4: Agreement Management (optional — recurring spend / BPA) ──────
     if "agreement" in request:
-        logger.info("=== Running PR4: Agreement Management ===")
-        agent   = PR4AgreementAgent(transaction_id, config)
-        results["PR4"] = await agent.run(request["agreement"])
+        await _run_agent(PR4AgreementAgent, "PR4", request["agreement"])
 
     # ── PR5: Purchase Order ───────────────────────────────────────────────
     if "purchase_order" in request:
-        logger.info("=== Running PR5: Purchase Order ===")
-        agent   = PR5PurchaseOrderAgent(transaction_id, config)
-        results["PR5"] = await agent.run(request["purchase_order"])
+        await _run_agent(PR5PurchaseOrderAgent, "PR5", request["purchase_order"])
 
     # ── PR6: Receiving ────────────────────────────────────────────────────
     if "receiving" in request:
-        logger.info("=== Running PR6: Receiving ===")
-        agent   = PR6ReceivingAgent(transaction_id, config)
-        results["PR6"] = await agent.run(request["receiving"])
+        await _run_agent(PR6ReceivingAgent, "PR6", request["receiving"])
 
-    # ── PR7: Lifecycle Monitor (always runs at end) ───────────────────────
-    logger.info("=== Running PR7: Lifecycle Monitor ===")
-    monitor    = PR7LifecycleMonitor(transaction_id, config)
-    pr_number  = results.get("PR2", {}).get("RequisitionNumber")
-    results["PR7"] = await monitor.run({"pr_number": pr_number})
+    # ── PR7: Lifecycle Monitor (always runs — even after failure) ─────────
+    # Reset first_error so PR7 runs regardless; restore afterward for re-raise
+    saved_error = first_error
+    first_error = None
+    pr_number   = results.get("PR2", {}).get("RequisitionNumber")
+    await _run_agent(PR7LifecycleMonitor, "PR7", {"pr_number": pr_number})
+    first_error = saved_error
+
+    # ── Write run report (always runs) ───────────────────────────────────
+    out_dir = report_dir or (Path(__file__).parent.parent / "runs")
+    try:
+        report_path = generate_report(
+            records=run_records,
+            txn_id=transaction_id,
+            request_file=request_file,
+            run_started=run_start,
+            output_dir=out_dir,
+        )
+        logger.info(f"[{transaction_id}] Report: {report_path}")
+    except Exception as exc:
+        logger.warning(f"[{transaction_id}] Report generation failed: {exc}")
+
+    # Re-raise the first agent failure so callers know the run did not complete
+    if first_error is not None:
+        raise first_error
 
     return results
 
@@ -144,9 +186,18 @@ def main():
     request = json.loads(request_path.read_text())
 
     print(f"\n[START] Starting P2P agents -- Transaction: {args.txn_id}\n")
-    results = asyncio.run(run_full_p2p(request, args.txn_id))
+    run_failed = False
+    try:
+        results = asyncio.run(run_full_p2p(request, args.txn_id,
+                                            request_file=str(request_path.resolve())))
+    except Exception as exc:
+        run_failed = True
+        results    = {}
+        print(f"\n[FAIL] P2P run stopped: {exc}\n")
 
-    print("\n[DONE] P2P run complete\n")
+    status_label = "[DONE]" if not run_failed else "[PARTIAL]"
+    print(f"\n{status_label} P2P run complete\n")
+    print(f"  Report: runs/p2p_run_{args.txn_id}_*.md\n")
     for agent, output in results.items():
         if agent == "PR7":
             gaps = output.get("gap_count", 0)

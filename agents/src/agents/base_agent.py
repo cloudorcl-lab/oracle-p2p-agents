@@ -50,11 +50,13 @@ class BaseAgent:
         self.store        = AgentStateStore(transaction_id)
         self.base_url     = self.config.base_url
         self.log          = logging.getLogger(f"p2p.{self.agent_id}")
+        self._api_calls   = 0   # incremented on every Oracle HTTP call
 
     # ── Core HTTP helpers ─────────────────────────────────────────────────
 
     async def get(self, path: str, params: dict | None = None) -> dict:
         """GET with retry. Returns response JSON."""
+        self._api_calls += 1
         async with make_client(self.config) as client:
             r = await oracle_call(
                 client=client, method="GET",
@@ -68,6 +70,7 @@ class BaseAgent:
     async def post(self, path: str, body: dict,
                    duplicate_checker=None) -> dict:
         """POST with retry + idempotency check."""
+        self._api_calls += 1
         async with make_client(self.config) as client:
             r = await oracle_call(
                 client=client, method="POST",
@@ -81,6 +84,7 @@ class BaseAgent:
 
     async def patch(self, path: str, body: dict) -> dict:
         """PATCH with retry."""
+        self._api_calls += 1
         async with make_client(self.config) as client:
             r = await oracle_call(
                 client=client, method="PATCH",
@@ -94,6 +98,7 @@ class BaseAgent:
     async def action(self, path: str, body: dict | None = None,
                      is_funds_check: bool = False) -> dict:
         """POST to an /action/ endpoint with retry."""
+        self._api_calls += 1
         action_name = path.split("/action/")[-1]
         async with make_client(self.config) as client:
             r = await oracle_call(
