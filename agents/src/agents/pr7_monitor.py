@@ -12,7 +12,12 @@ Run it at any time to get a full lifecycle snapshot:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+
+def _utcnow() -> datetime:
+    """Return current UTC time as a naive datetime (replaces deprecated utcnow())."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 from agents.base_agent import BaseAgent
 
@@ -84,7 +89,7 @@ class PR7LifecycleMonitor(BaseAgent):
         report["gaps"]             = gaps
         report["gap_count"]        = len(gaps)
         report["critical_count"]   = sum(1 for g in gaps if g["severity"] == "CRITICAL")
-        report["generated_at"]     = datetime.utcnow().isoformat()
+        report["generated_at"]     = _utcnow().isoformat()
 
         await self.audit("LIFECYCLE_SCAN", {
             "gap_count": len(gaps),
@@ -233,7 +238,7 @@ class PR7LifecycleMonitor(BaseAgent):
     # ── Bulk scan methods ─────────────────────────────────────────────────
 
     async def _scan_stale_prs(self) -> list[dict]:
-        cutoff = (datetime.utcnow() - timedelta(days=self.PR_APPROVAL_SLA_DAYS)
+        cutoff = (_utcnow() - timedelta(days=self.PR_APPROVAL_SLA_DAYS)
                   ).strftime("%Y-%m-%d")
         data = await self.get(
             "purchaseRequisitions",
@@ -250,7 +255,7 @@ class PR7LifecycleMonitor(BaseAgent):
         } for item in data.get("items", [])]
 
     async def _scan_overdue_pos(self) -> list[dict]:
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = _utcnow().strftime("%Y-%m-%d")
         data  = await self.get(
             "purchaseOrders",
             params={"q": f"POHeaderStatusCode=APPROVED,COMMUNICATED;"
@@ -267,9 +272,9 @@ class PR7LifecycleMonitor(BaseAgent):
         } for item in data.get("items", [])]
 
     async def _scan_expiring_agreements(self) -> list[dict]:
-        soon  = (datetime.utcnow() + timedelta(days=self.AGREEMENT_RENEWAL_LEAD_DAYS)
+        soon  = (_utcnow() + timedelta(days=self.AGREEMENT_RENEWAL_LEAD_DAYS)
                  ).strftime("%Y-%m-%d")
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = _utcnow().strftime("%Y-%m-%d")
         data  = await self.get(
             "supplierAgreements",
             params={"q": f"AgreementStatusCode=ACTIVE;"
@@ -287,15 +292,15 @@ class PR7LifecycleMonitor(BaseAgent):
         } for item in data.get("items", [])]
 
     async def _scan_expiring_qualifications(self) -> list[dict]:
-        soon  = (datetime.utcnow() + timedelta(days=self.QUALIFICATION_LEAD_DAYS)
+        soon  = (_utcnow() + timedelta(days=self.QUALIFICATION_LEAD_DAYS)
                  ).strftime("%Y-%m-%d")
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = _utcnow().strftime("%Y-%m-%d")
         # Note: must loop over active suppliers and check per-supplier
         # Simplified here — in production use a supplier query + loop
         return []   # TODO: add supplier loop when supplier list available
 
     async def _scan_stuck_negotiations(self) -> list[dict]:
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = _utcnow().strftime("%Y-%m-%d")
         data  = await self.get(
             "supplierNegotiations",
             params={"q": f"NegotiationStatus=PUBLISHED;ResponseDueDate<{today}",
@@ -319,7 +324,7 @@ class PR7LifecycleMonitor(BaseAgent):
             return 0
         try:
             dt = datetime.fromisoformat(date_str[:10])
-            return (datetime.utcnow() - dt).days
+            return (_utcnow() - dt).days
         except ValueError:
             return 0
 
@@ -329,7 +334,7 @@ class PR7LifecycleMonitor(BaseAgent):
             return 0
         try:
             due = datetime.fromisoformat(date_str[:10])
-            delta = (datetime.utcnow() - due).days
+            delta = (_utcnow() - due).days
             return max(delta, 0)
         except ValueError:
             return 0

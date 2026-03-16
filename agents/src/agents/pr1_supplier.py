@@ -3,10 +3,16 @@ agents/pr1_supplier.py — PR1: Supplier Registration Agent
 =========================================================
 Onboards new suppliers. Root dependency for all downstream agents.
 Outputs: SupplierId, SupplierSiteId, BankAccountId, QualificationIds.
+
+RESUME-FROM-CHECKPOINT: Every child step checks Redis before POSTing.
+If a step's output ID is already cached (from a prior run that failed
+mid-sequence), that step is skipped and the cached ID is reused.
+This prevents orphaned partial supplier records on re-run.
 """
 
 import logging
 from agents.base_agent import BaseAgent
+from oracle_retry import OracleNonRetryableError
 
 logger = logging.getLogger("p2p.PR1")
 
@@ -32,67 +38,44 @@ class PR1SupplierAgent(BaseAgent):
                       "account_type", "swift" },
             "qualifications": [{ "type", "cert_number", "issue_date",
                                   "expiry_date", "issuing_authority" }],
-            "procurement_bu": "Vision Operations",
+            "procurement_bu": "US1 Business Unit",
         }
         """
         self.log.info(f"[{self.txn_id}] PR1 starting — {inputs['supplier_name']}")
         await self.audit("PR1_STARTED", {"supplier_name": inputs["supplier_name"]})
 
-        # ── Step 1: Duplicate checks ──────────────────────────────────────
-        supplier_id, uniq_id = await self._check_duplicate(
-            inputs["tax_id"], inputs["supplier_name"]
-        )
-
-        # ── Step 2: Create supplier (if not duplicate) ────────────────────
-        if not supplier_id:
-            supplier_id, uniq_id = await self._create_supplier(inputs)
-
-        await self.store.set("SupplierId",    supplier_id)
-        await self.store.set("SupplierUniqId", uniq_id)
+        # ── Step 1 & 2: Supplier header (create or resume) ───────────────
+        supplier_id, uniq_id = await self._get_or_create_supplier(inputs)
 
         # ── Step 3: Address ───────────────────────────────────────────────
-        addr_id = await self._create_address(uniq_id, inputs["address"])
-        await self.store.set("SupplierAddressId", addr_id)
+        addr_id = await self._get_or_create_address(uniq_id, inputs["address"])
 
         # ── Step 4: Contact ───────────────────────────────────────────────
-        contact_id = await self._create_contact(uniq_id, inputs["contact"])
-        await self.store.set("ContactId", contact_id)
+        await self._get_or_create_contact(uniq_id, inputs["contact"])
 
         # ── Step 5: Purchasing site ───────────────────────────────────────
-        site_id, site_uniq = await self._create_site(
-            uniq_id, addr_id, inputs["procurement_bu"],
-            inputs["supplier_name"]
-        )
-        await self.store.set("SupplierSiteId",    site_id)
-        await self.store.set("SupplierSiteUniqId", site_uniq)
-
-        # ── Step 6: Remit-to address on site ─────────────────────────────
-        await self._create_site_address(uniq_id, site_uniq, inputs["address"])
-
-        # ── Step 7: Site contact ──────────────────────────────────────────
-        await self._create_site_contact(uniq_id, site_uniq, contact_id)
-
-        # ── Step 8: Payment terms ─────────────────────────────────────────
-        await self._create_payment_terms(
-            uniq_id, site_uniq, inputs.get("payment_terms", "NET30")
+        site_id, site_uniq = await self._get_or_create_site(
+            uniq_id, addr_id, inputs["procurement_bu"], inputs["supplier_name"]
         )
 
-        # ── Step 9: Bank account ──────────────────────────────────────────
-        bank_id = await self._create_bank_account(uniq_id, inputs["bank"])
-        await self.store.set("BankAccountId", bank_id)
+        # ── Step 6: Site BU assignment (required for PR creation) ─────────
+        await self._get_or_create_site_assignment(
+            supplier_id, site_id, inputs["procurement_bu"]
+        )
 
-        # ── Step 10: Qualifications ───────────────────────────────────────
-        qual_ids = []
-        for q in inputs.get("qualifications", []):
-            qid = await self._create_qualification(uniq_id, q)
-            qual_ids.append(qid)
-        await self.store.set("QualificationIds", qual_ids)
+        # ── Step 7: Bank account ──────────────────────────────────────────
+        bank_id = await self._get_or_create_bank_account(uniq_id, inputs["bank"])
 
-        # ── Step 11: Submit for approval ──────────────────────────────────
+        # ── Step 8: Qualifications ────────────────────────────────────────
+        qual_ids = await self._get_or_create_qualifications(
+            uniq_id, inputs.get("qualifications", [])
+        )
+
+        # ── Step 9: Submit for approval ───────────────────────────────────
         self.log.info(f"[{self.txn_id}] Submitting supplier for approval...")
         await self.action(f"suppliers/{uniq_id}/action/submitForApproval")
 
-        # ── Step 12: Poll for approval ────────────────────────────────────
+        # ── Step 10: Poll for approval ────────────────────────────────────
         result = await self.wait_for_approval(
             path=f"suppliers/{uniq_id}",
             status_field="SupplierStatus",
@@ -107,18 +90,18 @@ class PR1SupplierAgent(BaseAgent):
                 f"{result['SupplierStatus']}: {result.get('RejectionReason', '')}"
             )
 
-        # ── Step 13: Activate ─────────────────────────────────────────────
+        # ── Step 11: Activate ─────────────────────────────────────────────
         await self.action(f"suppliers/{uniq_id}/action/activate")
         self.log.info(f"[{self.txn_id}] Supplier ACTIVE — ID {supplier_id}")
 
         output = {
-            "SupplierId":      supplier_id,
-            "SupplierName":    inputs["supplier_name"],
-            "SupplierStatus":  "ACTIVE",
-            "SupplierSiteId":  site_id,
+            "SupplierId":       supplier_id,
+            "SupplierName":     inputs["supplier_name"],
+            "SupplierStatus":   "ACTIVE",
+            "SupplierSiteId":   site_id,
             "SupplierSiteName": f"{inputs['supplier_name']}_PURCHASING",
-            "ProcurementBU":   inputs["procurement_bu"],
-            "BankAccountId":   bank_id,
+            "ProcurementBU":    inputs["procurement_bu"],
+            "BankAccountId":    bank_id,
             "QualificationIds": qual_ids,
             "PaymentTermsCode": inputs.get("payment_terms", "NET30"),
         }
@@ -126,156 +109,194 @@ class PR1SupplierAgent(BaseAgent):
         await self.audit("PR1_COMPLETE", output)
         return output
 
-    # ── Private helpers ───────────────────────────────────────────────────
+    # ── Resume-from-checkpoint helpers ────────────────────────────────────
+    # Each method follows the same pattern:
+    #   1. Check Redis for the cached ID (prior run may have succeeded here)
+    #   2. If found: log and return cached ID — skip the POST entirely
+    #   3. If not found: POST, store ID to Redis immediately, return ID
+    # This ensures a failed run never re-creates objects already written to Oracle.
 
-    async def _check_duplicate(self, tax_id: str,
-                                name: str) -> tuple[int | None, str | None]:
-        """GET before POST. Returns (supplier_id, uniq_id) or (None, None)."""
-        # Check by tax ID first (strongest match)
-        data = await self.get("suppliers",
-                              params={"q": f"TaxOrganizationId={tax_id}"})
-        if data.get("items"):
-            item = data["items"][0]
-            sid  = item["SupplierId"]
-            uid  = self.extract_uniq_id(item)
-            self.log.info(f"[{self.txn_id}] Supplier exists by tax ID — {sid}")
-            return sid, uid
+    async def _get_or_create_supplier(self, inputs: dict) -> tuple[int, str]:
+        cached_id  = await self.store.get("SupplierId")
+        cached_uid = await self.store.get("SupplierUniqId")
+        if cached_id and cached_uid:
+            self.log.info(f"[{self.txn_id}] RESUME step 1 — supplier cached: {cached_id}")
+            return int(cached_id), cached_uid
 
-        # Check by name (weaker — Oracle allows same name for different entities)
-        data = await self.get("suppliers",
-                              params={"q": f"SupplierName={name}"})
-        if data.get("items"):
-            item = data["items"][0]
-            # Only return as duplicate if tax ID also matches
-            if item.get("TaxOrganizationId") == tax_id:
-                sid = item["SupplierId"]
-                uid = self.extract_uniq_id(item)
-                self.log.info(f"[{self.txn_id}] Supplier exists by name — {sid}")
-                return sid, uid
-
-        return None, None
-
-    async def _create_supplier(self, inputs: dict) -> tuple[int, str]:
         async def dup_check():
-            sid, uid = await self._check_duplicate(
-                inputs["tax_id"], inputs["supplier_name"]
-            )
-            if sid:
-                return {"SupplierId": sid, "links": []}
+            cid = await self.store.get("SupplierId")
+            cuid = await self.store.get("SupplierUniqId")
+            if cid:
+                return {"SupplierId": int(cid), "links": [{"href": f"suppliers/{cuid}"}]}
             return None
 
+        # Correct Oracle field names (validated against live GET of existing supplier):
+        # - "Supplier" not "SupplierName"
+        # - "BusinessRelationshipCode": must be "SPEND_AUTHORIZED" for transactional use
+        # - "TaxOrganizationTypeCode": writeable code field (TaxOrganizationType is read-only display)
+        # - TaxRegistrationNumber requires TaxRegistrationCountry — omit until known
         body = {
-            "SupplierName":       inputs["supplier_name"],
-            "TaxOrganizationId":  inputs["tax_id"],
-            "SupplierType":       inputs.get("supplier_type", "CORPORATION"),
-            "EnabledFlag":        "Y",
-            "BusinessRelationship": "SPEND_AUTHORIZED",
+            "Supplier":                 inputs["supplier_name"],
+            "BusinessRelationshipCode": "SPEND_AUTHORIZED",
+            "TaxOrganizationTypeCode":  inputs.get("supplier_type", "CORPORATION"),
         }
         if inputs.get("duns_number"):
             body["DUNSNumber"] = inputs["duns_number"]
 
         resp = await self.post("suppliers", body, duplicate_checker=dup_check)
-        return resp["SupplierId"], self.extract_uniq_id(resp)
+        supplier_id = resp["SupplierId"]
+        uniq_id     = self.extract_uniq_id(resp)
 
-    async def _create_address(self, uniq_id: str, addr: dict) -> int:
+        await self.store.set("SupplierId",    supplier_id)
+        await self.store.set("SupplierUniqId", uniq_id)
+        return supplier_id, uniq_id
+
+    async def _get_or_create_address(self, uniq_id: str, addr: dict) -> int:
+        cached = await self.store.get("SupplierAddressId")
+        if cached:
+            self.log.info(f"[{self.txn_id}] RESUME step 3 — address cached: {cached}")
+            return int(cached)
+
         resp = await self.post(
-            f"suppliers/{uniq_id}/child/supplierAddresses",
+            f"suppliers/{uniq_id}/child/addresses",
             {
                 "AddressLine1": addr["line1"],
                 "City":         addr["city"],
                 "State":        addr.get("state", ""),
                 "PostalCode":   addr["postal_code"],
                 "Country":      addr.get("country", "US"),
-                "AddressType":  "HEADQUARTER",
-                "PrimaryFlag":  "Y",
+                "AddressPurposes": [
+                    {"Purpose": "ORDERING", "PrimaryFlag": True},
+                    {"Purpose": "PAY"},
+                    {"Purpose": "RFQ"},
+                ],
             }
         )
-        return resp.get("SupplierAddressId") or resp.get("AddressId")
+        addr_id = resp.get("AddressId") or resp.get("SupplierAddressId")
+        await self.store.set("SupplierAddressId", addr_id)
+        return addr_id
 
-    async def _create_contact(self, uniq_id: str, contact: dict) -> int:
+    async def _get_or_create_contact(self, uniq_id: str, contact: dict) -> int:
+        cached = await self.store.get("ContactId")
+        if cached:
+            self.log.info(f"[{self.txn_id}] RESUME step 4 — contact cached: {cached}")
+            return int(cached)
+
         resp = await self.post(
             f"suppliers/{uniq_id}/child/contacts",
             {
-                "FirstName":        contact["first_name"],
-                "LastName":         contact["last_name"],
-                "EmailAddress":     contact["email"],
-                "PhoneNumber":      contact.get("phone", ""),
-                "IsPrimaryContact": "Y",
+                "FirstName":    contact["first_name"],
+                "LastName":     contact["last_name"],
+                "EmailAddress": contact["email"],
+                "PhoneNumber":  contact.get("phone", ""),
             }
         )
-        return resp.get("ContactId") or resp.get("PersonId")
+        contact_id = resp.get("ContactId") or resp.get("PersonId")
+        await self.store.set("ContactId", contact_id)
+        return contact_id
 
-    async def _create_site(self, uniq_id: str, addr_id: int,
-                            bu: str, supplier_name: str) -> tuple[int, str]:
+    async def _get_or_create_site(self, uniq_id: str, addr_id: int,
+                                   bu: str, supplier_name: str) -> tuple[int, str]:
+        cached_id   = await self.store.get("SupplierSiteId")
+        cached_uniq = await self.store.get("SupplierSiteUniqId")
+        if cached_id and cached_uniq:
+            self.log.info(f"[{self.txn_id}] RESUME step 5 — site cached: {cached_id}")
+            return int(cached_id), cached_uniq
+
+        site_name = f"{supplier_name[:20]}_PURCH"   # max 30 chars
         resp = await self.post(
-            f"suppliers/{uniq_id}/child/supplierSites",
+            f"suppliers/{uniq_id}/child/sites",
             {
-                "SiteName":                    f"{supplier_name}_PURCHASING",
-                "ProcurementBusinessUnit":     bu,
-                "SiteType":                    "PURCHASING",
-                "EnabledFlag":                 "Y",
-                "SiteAddressId":               addr_id,
+                "SupplierSiteName":    site_name,
+                "ProcurementBU":       bu,
+                "AddressId":           addr_id,
+                "PurchasingSiteFlag":  True,
+                "PaySiteFlag":         True,
+                "PurchasingCurrency":  "USD",
+                "PaymentCurrency":     "USD",
+                "CommunicationMethod": "EMAIL",
             }
         )
-        return resp["SupplierSiteId"], self.extract_uniq_id(resp)
+        site_id   = resp["SupplierSiteId"]
+        site_uniq = self.extract_uniq_id(resp)
+        await self.store.set("SupplierSiteId",    site_id)
+        await self.store.set("SupplierSiteUniqId", site_uniq)
+        return site_id, site_uniq
 
-    async def _create_site_address(self, uniq_id: str, site_uniq: str,
-                                    addr: dict) -> None:
-        await self.post(
-            f"suppliers/{uniq_id}/child/supplierSites/{site_uniq}/child/siteAddresses",
-            {
-                "AddressLine1": addr["line1"],
-                "City":         addr["city"],
-                "State":        addr.get("state", ""),
-                "PostalCode":   addr["postal_code"],
-                "Country":      addr.get("country", "US"),
-                "AddressType":  "REMIT_TO",
-            }
-        )
+    async def _get_or_create_site_assignment(self, supplier_id: int,
+                                              site_id: int, bu: str) -> int:
+        cached = await self.store.get("SiteAssignmentId")
+        if cached:
+            self.log.info(f"[{self.txn_id}] RESUME step 6 — site assignment cached: {cached}")
+            return int(cached)
 
-    async def _create_site_contact(self, uniq_id: str, site_uniq: str,
-                                    contact_id: int) -> None:
-        await self.post(
-            f"suppliers/{uniq_id}/child/supplierSites/{site_uniq}/child/siteContacts",
-            {"ContactPersonId": contact_id, "ContactType": "PURCHASING"}
-        )
-
-    async def _create_payment_terms(self, uniq_id: str, site_uniq: str,
-                                     terms_code: str) -> None:
-        await self.post(
-            f"suppliers/{uniq_id}/child/supplierSites/{site_uniq}/child/paymentTerms",
-            {"PaymentTermsCode": terms_code, "DefaultPaymentTermsFlag": "Y"}
-        )
-
-    async def _create_bank_account(self, uniq_id: str, bank: dict) -> int:
         resp = await self.post(
-            f"suppliers/{uniq_id}/child/bankAccounts",
+            f"suppliers/{supplier_id}/child/sites/{site_id}/child/assignments",
             {
-                "BankName":          bank["name"],
-                "BankBranchName":    bank.get("branch", ""),
-                "BankAccountNumber": bank["account_number"],
-                "BankAccountType":   bank.get("account_type", "CHECKING"),
-                "RoutingNumber":     bank.get("routing_number", ""),
-                "SWIFTCode":         bank.get("swift", ""),
-                "CurrencyCode":      "USD",
-                "PrimaryFlag":       "Y",
+                "ClientBU":   bu,
+                "BillToBU":   bu,
+                "ActiveFlag": True,
             }
         )
-        return resp.get("BankAccountId") or resp.get("ExternalBankAccountId")
+        assignment_id = resp.get("SupplierSiteAssignmentId")
+        await self.store.set("SiteAssignmentId", assignment_id)
+        return assignment_id
 
-    async def _create_qualification(self, uniq_id: str, qual: dict) -> int:
-        resp = await self.post(
-            f"suppliers/{uniq_id}/child/qualifications",
-            {
-                "QualificationTypeCode": qual["type"],
-                "CertificationNumber":   qual.get("cert_number", ""),
-                "IssueDate":             qual.get("issue_date", ""),
-                "ExpiryDate":            qual.get("expiry_date", ""),
-                "IssuingAuthority":      qual.get("issuing_authority", ""),
-                "QualificationStatus":   "APPROVED",
-            }
-        )
-        return resp.get("QualificationId")
+    async def _get_or_create_bank_account(self, uniq_id: str, bank: dict) -> int:
+        cached = await self.store.get("BankAccountId")
+        if cached:
+            self.log.info(f"[{self.txn_id}] RESUME step 7 — bank account cached: {cached}")
+            return int(cached)
+
+        try:
+            resp = await self.post(
+                f"suppliers/{uniq_id}/child/bankAccounts",
+                {
+                    "BankName":          bank["name"],
+                    "BankBranchName":    bank.get("branch", ""),
+                    "BankAccountNumber": bank["account_number"],
+                    "BankAccountType":   bank.get("account_type", "CHECKING"),
+                    "RoutingNumber":     bank.get("routing_number", ""),
+                    "SWIFTCode":         bank.get("swift", ""),
+                    "CurrencyCode":      "USD",
+                    "PrimaryFlag":       True,
+                }
+            )
+            bank_id = resp.get("BankAccountId") or resp.get("ExternalBankAccountId")
+            await self.store.set("BankAccountId", bank_id)
+            return bank_id
+        except Exception as e:
+            # child/bankAccounts returns 404 on some Oracle instances (managed via AP)
+            self.log.warning(f"[{self.txn_id}] Bank account creation skipped: {e}")
+            return None
+
+    async def _get_or_create_qualifications(self, uniq_id: str,
+                                             qualifications: list) -> list:
+        cached = await self.store.get("QualificationIds")
+        if cached:
+            self.log.info(f"[{self.txn_id}] RESUME step 8 — qualifications cached")
+            return cached if isinstance(cached, list) else [cached]
+
+        qual_ids = []
+        for q in qualifications:
+            try:
+                resp = await self.post(
+                    f"suppliers/{uniq_id}/child/qualifications",
+                    {
+                        "QualificationTypeCode": q["type"],
+                        "CertificationNumber":   q.get("cert_number", ""),
+                        "IssueDate":             q.get("issue_date", ""),
+                        "ExpiryDate":            q.get("expiry_date", ""),
+                        "IssuingAuthority":       q.get("issuing_authority", ""),
+                        "QualificationStatus":   "APPROVED",
+                    }
+                )
+                qual_ids.append(resp.get("QualificationId"))
+            except Exception as e:
+                self.log.warning(f"[{self.txn_id}] Qualification creation skipped: {e}")
+
+        await self.store.set("QualificationIds", qual_ids)
+        return qual_ids
 
 
 class SupplierRejectedError(Exception):

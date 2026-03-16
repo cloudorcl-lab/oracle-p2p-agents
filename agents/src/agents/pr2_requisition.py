@@ -142,7 +142,7 @@ class PR2RequisitionAgent(BaseAgent):
         # Check 1 — Supplier active
         supplier_name = line["supplier_name"]
         data = await self.get("suppliers",
-                              params={"q": f"SupplierName={supplier_name}"})
+                              params={"q": f"SupplierName='{supplier_name}'"})
         if not data.get("items"):
             raise PreCheckError(1, f"Supplier '{supplier_name}' not found — run PR1 first")
         supplier = data["items"][0]
@@ -154,7 +154,7 @@ class PR2RequisitionAgent(BaseAgent):
         sup_id = supplier["SupplierId"]
         sites  = await self.get(
             f"suppliers/{sup_id}/child/supplierSites",
-            params={"q": f"SiteType=PURCHASING;ProcurementBusinessUnit={bu}"}
+            params={"q": f"SiteType=PURCHASING;ProcurementBusinessUnit='{bu}'"}
         )
         if not sites.get("items"):
             raise PreCheckError(2, f"No PURCHASING site for supplier in BU '{bu}'")
@@ -175,8 +175,8 @@ class PR2RequisitionAgent(BaseAgent):
         if item_number:
             items = await self.get(
                 "items",
-                params={"q": f"ItemNumber={item_number};"
-                             f"OrganizationCode={line.get('org_code', 'V1')}"}
+                params={"q": f"ItemNumber='{item_number}';"
+                             f"OrganizationCode='{line.get('org_code', 'V1')}'"}
             )
             if not items.get("items"):
                 self.log.warning(f"Item {item_number} not in PIM — will use free-text line")
@@ -188,7 +188,7 @@ class PR2RequisitionAgent(BaseAgent):
         """Look up BU ID by name."""
         data = await self.get(
             "businessUnits",
-            params={"q": f"BusinessUnitName={bu_name}",
+            params={"q": f"BusinessUnitName='{bu_name}'",
                     "fields": "BusinessUnitId"}
         )
         items = data.get("items", [])
@@ -205,8 +205,8 @@ class PR2RequisitionAgent(BaseAgent):
         async def dup_check():
             data = await self.get(
                 "purchaseRequisitions",
-                params={"q": f"PreparerEmail={email};"
-                             f"Description={description};"
+                params={"q": f"PreparerEmail='{email}';"
+                             f"Description='{description}';"
                              f"DocumentStatus=INCOMPLETE,APPROVED,OPEN"}
             )
             if data.get("items"):

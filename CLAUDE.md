@@ -1,6 +1,13 @@
 # Oracle Fusion Cloud — Source-to-Pay (P2P) Agent System
 # Claude Code Project Master Guide
 
+## Session Continuity
+
+At the start of every session, read [SESSION_CONTEXT.md](SESSION_CONTEXT.md) in this directory.
+It contains the current build status, remaining steps, and key decisions — do not ask the user to re-explain what has already been done.
+
+---
+
 ## What This Project Builds
 
 A 7-agent automation system covering the complete **Source-to-Pay lifecycle** on Oracle Fusion Cloud. Each agent owns one phase of the process. Agents run sequentially, passing IDs through a shared state store.
@@ -179,6 +186,44 @@ redis_client.hset(f"p2p:{transaction_id}", mapping={
 ### Rule 7: Never Hardcode IDs, Host URLs, or Credentials
 All configuration comes from `config.yaml` and environment variables. No exceptions.
 
+### Rule 8: Resume-From-Checkpoint — Never Re-Create What Already Exists
+**This is the most important operational rule.** Every child step in every agent must check Redis for a cached ID before issuing a POST. If the ID is cached, skip the POST and return the cached value. This applies to ALL child objects: addresses, contacts, sites, assignments, lines, distributions, schedules — everything.
+
+**Why this rule exists:** A failed run in a multi-step agent (e.g., supplier header created, then LOV error on a child resource) leaves a partial record in Oracle. Without checkpoint resumption, the next run creates a second supplier header, and so on. Over a debugging session this produced 30+ orphaned partial supplier records that cannot be easily cleaned up on a demo instance.
+
+```python
+# MANDATORY PATTERN — apply to every child step in every agent
+async def _get_or_create_X(self, parent_id, payload) -> int:
+    cached = await self.store.get("XId")
+    if cached:
+        self.log.info(f"RESUME — X already exists: {cached}")
+        return int(cached)
+    resp = await self.post(f"parent/{parent_id}/child/X", payload)
+    x_id = resp["XId"]
+    await self.store.set("XId", x_id)   # store BEFORE returning
+    return x_id
+```
+
+### Rule 9: Diagnose Before Retry — GET a Known Record First
+When a POST returns a 400 validation error, **do not retry with different field values**. Instead:
+1. GET an existing Oracle record of the same type (e.g., `GET /suppliers/{known_id}`)
+2. Compare the field names in the response to the field names in the POST body
+3. Fix the body, confirm with the user, then run once
+
+**Why:** Oracle uses separate field names for read (display labels like `TaxOrganizationType`) and write (code fields like `TaxOrganizationTypeCode`). The GET response always shows the correct writeable field names. One diagnostic GET prevents hours of blind retries.
+
+### Rule 10: Oracle Field Name Validation — Code vs Display
+Oracle REST APIs return both a code field and a display field for every enumerated value:
+
+| Writeable (use in POST) | Read-only display (never use in POST) |
+|------------------------|---------------------------------------|
+| `TaxOrganizationTypeCode` | `TaxOrganizationType` |
+| `BusinessRelationshipCode` | `BusinessRelationship` |
+| `StatusCode` | `Status` |
+| `CurrencyCode` | `Currency` |
+
+**Rule:** If a field name ends in `Code`, it is the writeable version. If Oracle returns a paired field without `Code`, that is the display label — never include it in a POST/PATCH body.
+
 ---
 
 ## Technology Stack
@@ -195,7 +240,6 @@ All configuration comes from `config.yaml` and environment variables. No excepti
 | Secrets | HashiCorp Vault or `.env` | Credentials |
 | Monitoring | Prometheus + Grafana | SLA dashboards |
 | Testing | `pytest` + `respx` (mock) | Unit and integration |
-| Containers | Docker + docker-compose | Local dev |
 
 ---
 

@@ -19,11 +19,13 @@ from pathlib import Path
 
 from auth.oracle_auth import load_config, test_connection
 from state.state_store import AgentStateStore
-from agents.pr1_supplier     import PR1SupplierAgent
-from agents.pr2_requisition  import PR2RequisitionAgent
+from agents.pr1_supplier       import PR1SupplierAgent
+from agents.pr2_requisition    import PR2RequisitionAgent
+from agents.pr3_sourcing       import PR3SourcingAgent
+from agents.pr4_agreement      import PR4AgreementAgent
 from agents.pr5_purchase_order import PR5PurchaseOrderAgent
-from agents.pr6_receiving    import PR6ReceivingAgent
-from agents.pr7_monitor      import PR7LifecycleMonitor
+from agents.pr6_receiving      import PR6ReceivingAgent
+from agents.pr7_monitor        import PR7LifecycleMonitor
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,9 +36,9 @@ logger = logging.getLogger("orchestrator")
 
 async def run_full_p2p(request: dict, transaction_id: str) -> dict:
     """
-    Runs: PR1 → PR2 → PR5 → PR6
-    PR3 (Sourcing) and PR4 (Agreement) are skipped for direct-buy path.
-    PR7 Monitor runs at the end for gap detection.
+    Runs: PR1 → PR2 → [PR3 if sourcing] → [PR4 if agreement] → PR5 → PR6
+    PR3 and PR4 are optional — include "sourcing" or "agreement" keys in request.
+    PR7 Monitor always runs at the end for gap detection.
     """
     config = load_config()
     results = {}
@@ -52,6 +54,18 @@ async def run_full_p2p(request: dict, transaction_id: str) -> dict:
         logger.info("=== Running PR2: Requisition ===")
         agent   = PR2RequisitionAgent(transaction_id, config)
         results["PR2"] = await agent.run(request["requisition"])
+
+    # ── PR3: Sourcing / Negotiation (optional — competitive sourcing) ─────
+    if "sourcing" in request:
+        logger.info("=== Running PR3: Sourcing / Negotiation ===")
+        agent   = PR3SourcingAgent(transaction_id, config)
+        results["PR3"] = await agent.run(request["sourcing"])
+
+    # ── PR4: Agreement Management (optional — recurring spend / BPA) ──────
+    if "agreement" in request:
+        logger.info("=== Running PR4: Agreement Management ===")
+        agent   = PR4AgreementAgent(transaction_id, config)
+        results["PR4"] = await agent.run(request["agreement"])
 
     # ── PR5: Purchase Order ───────────────────────────────────────────────
     if "purchase_order" in request:
@@ -81,12 +95,12 @@ async def run_monitor_only(transaction_id: str) -> None:
     gaps    = await monitor.scan_all_gaps()
 
     if not gaps:
-        print("\n✅ No gaps found across P2P lifecycle")
+        print("\n[OK] No gaps found across P2P lifecycle")
         return
 
-    print(f"\n⚠️  {len(gaps)} gap(s) detected:\n")
+    print(f"\n[WARN] {len(gaps)} gap(s) detected:\n")
     for g in gaps:
-        icon = "🔴" if g["severity"] in ("CRITICAL", "HIGH") else "🟡"
+        icon = "[HIGH]" if g["severity"] in ("CRITICAL", "HIGH") else "[MED]"
         print(f"  {icon} [{g['severity']}] {g['gap_type']}")
         print(f"     Document: {g.get('document', 'N/A')}")
         print(f"     Message:  {g['message']}")
@@ -109,7 +123,7 @@ def main():
     if args.test_conn:
         config = load_config()
         ok = asyncio.run(test_connection(config))
-        print("✅ Oracle connection OK" if ok else "❌ Oracle connection FAILED")
+        print("[OK] Oracle connection OK" if ok else "[FAIL] Oracle connection FAILED")
         sys.exit(0 if ok else 1)
 
     # ── Monitor only ──────────────────────────────────────────────────────
@@ -129,14 +143,22 @@ def main():
 
     request = json.loads(request_path.read_text())
 
-    print(f"\n🚀 Starting P2P agents — Transaction: {args.txn_id}\n")
+    print(f"\n[START] Starting P2P agents -- Transaction: {args.txn_id}\n")
     results = asyncio.run(run_full_p2p(request, args.txn_id))
 
-    print("\n✅ P2P run complete\n")
+    print("\n[DONE] P2P run complete\n")
     for agent, output in results.items():
         if agent == "PR7":
             gaps = output.get("gap_count", 0)
             print(f"  {agent}: {gaps} gap(s) detected")
+        elif agent == "PR3":
+            neg_num = output.get("NegotiationNumber", "—")
+            awards  = len(output.get("awards", []))
+            print(f"  {agent}: {neg_num} ({awards} award(s))")
+        elif agent == "PR4":
+            agr_num = output.get("AgreementNumber", "—")
+            status  = output.get("AgreementStatusCode", "—")
+            print(f"  {agent}: {agr_num} ({status})")
         else:
             key_id = (output.get("RequisitionNumber")
                       or output.get("OrderNumber")
