@@ -1,0 +1,265 @@
+Setup started: Wed 03/18/2026 11:58:15.75 
+ 
+============================================================ 
+  STATUS: 0 error(s) - see log for details 
+============================================================ 
+ECHO is off.
+Log written to: C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\setup_log.txt 
+============================================================ 
+ECHO is off.
+[1/6] Checking Python... 
+[5/6] Verifying agent imports... 
+All 7 agents import OK
+[OK]   All 7 agents import successfully 
+ECHO is off.
+[6/6] Running unit tests... 
+       Running: python -m unittest discover... 
+...........[TEST-PR2-001] submitRequisition may have timed out — polling status
+....[TEST-PR3-001] publish may have timed out — verifying status
+.[TEST-PR3-001] Response due date reached — 0 of 1 responses received
+[TEST-PR3-001] No supplier responses received — proceeding to award with justification
+..............[TEST-PR4-001] submitForApproval may have timed out — polling
+....[TEST-PR5-001] PO transmit failed — may need manual send
+...........[TEST-PR6-001] 2 units rejected and returned to supplier
+.....[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] PO_DELIVERY_OVERDUE: PO PO-002 delivery overdue by 3 days
+.[TEST-PR7-001] 1 gap(s) detected:
+.[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] RECEIPT_NO_INVOICE: Receipt RCV-003 confirmed 10 days ago — AP invoice not detected
+..
+----------------------------------------------------------------------
+Ran 54 tests in 0.387s
+
+OK
+[OK]   All tests passed 
+ECHO is off.
+============================================================ 
+  SETUP SUMMARY 
+============================================================ 
+  Python:      Python 3.13.4 
+  .env:        C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+  STATUS: ALL GOOD 
+============================================================ 
+ECHO is off.
+Log written to: C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\setup_log.txt 
+ECHO is off.
+[2/6] Installing Python packages... 
+       Upgrading pip... 
+Requirement already satisfied: pip in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (26.0.1)
+       Installing requirements.txt... 
+Requirement already satisfied: httpx>=0.27.0 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from -r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 2)) (0.28.1)
+Requirement already satisfied: redis>=5.0.0 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from -r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 3)) (7.3.0)
+Requirement already satisfied: psycopg2-binary>=2.9.0 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from -r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 4)) (2.9.11)
+Requirement already satisfied: python-dotenv>=1.0.0 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from -r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 5)) (1.2.2)
+Requirement already satisfied: pydantic>=2.0.0 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from -r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 6)) (2.12.5)
+Requirement already satisfied: anyio in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpx>=0.27.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 2)) (4.12.1)
+Requirement already satisfied: certifi in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpx>=0.27.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 2)) (2026.2.25)
+Requirement already satisfied: httpcore==1.* in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpx>=0.27.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 2)) (1.0.9)
+Requirement already satisfied: idna in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpx>=0.27.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 2)) (3.11)
+Requirement already satisfied: h11>=0.16 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpcore==1.*->httpx>=0.27.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 2)) (0.16.0)
+Requirement already satisfied: annotated-types>=0.6.0 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from pydantic>=2.0.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 6)) (0.7.0)
+Requirement already satisfied: pydantic-core==2.41.5 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from pydantic>=2.0.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 6)) (2.41.5)
+Requirement already satisfied: typing-extensions>=4.14.1 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from pydantic>=2.0.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 6)) (4.15.0)
+Requirement already satisfied: typing-inspection>=0.4.2 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from pydantic>=2.0.0->-r C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\requirements.txt (line 6)) (0.4.2)
+       Installing respx... 
+Requirement already satisfied: respx in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (0.22.0)
+Requirement already satisfied: httpx>=0.25.0 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from respx) (0.28.1)
+Requirement already satisfied: anyio in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpx>=0.25.0->respx) (4.12.1)
+Requirement already satisfied: certifi in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpx>=0.25.0->respx) (2026.2.25)
+Requirement already satisfied: httpcore==1.* in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpx>=0.25.0->respx) (1.0.9)
+Requirement already satisfied: idna in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpx>=0.25.0->respx) (3.11)
+Requirement already satisfied: h11>=0.16 in C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\site-packages (from httpcore==1.*->httpx>=0.25.0->respx) (0.16.0)
+       Checking PowerShell at: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe 
+[OK]   .env exists at C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+[5/6] Verifying agent imports... 
+All 7 agents import OK
+[OK]   All 7 agents import successfully 
+ECHO is off.
+[6/6] Running unit tests... 
+       Running: python -m unittest discover... 
+...........[TEST-PR2-001] submitRequisition may have timed out — polling status
+....[TEST-PR3-001] publish may have timed out — verifying status
+.[TEST-PR3-001] Response due date reached — 0 of 1 responses received
+[TEST-PR3-001] No supplier responses received — proceeding to award with justification
+..............[TEST-PR4-001] submitForApproval may have timed out — polling
+....[TEST-PR5-001] PO transmit failed — may need manual send
+...........[TEST-PR6-001] 2 units rejected and returned to supplier
+.....[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] PO_DELIVERY_OVERDUE: PO PO-002 delivery overdue by 3 days
+.[TEST-PR7-001] 1 gap(s) detected:
+.[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] RECEIPT_NO_INVOICE: Receipt RCV-003 confirmed 10 days ago — AP invoice not detected
+..
+----------------------------------------------------------------------
+Ran 54 tests in 0.376s
+
+OK
+[OK]   All tests passed 
+ECHO is off.
+============================================================ 
+  SETUP SUMMARY 
+============================================================ 
+  Python:      Python 3.13.4 
+  .env:        C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+  STATUS: ALL GOOD 
+============================================================ 
+ECHO is off.
+Log written to: C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\setup_log.txt 
+Invoke-WebRequest : Invalid URI: The hostname could not be parsed.
+At line:1 char:82
++ ... t.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '' -OutFile ''
++                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Invoke-WebRequest], UriFormatException
+    + FullyQualifiedErrorId : System.UriFormatException,Microsoft.PowerShell.Commands.InvokeWebRequestCommand
+ 
+[OK]   .env exists at C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+[5/6] Verifying agent imports... 
+All 7 agents import OK
+[OK]   All 7 agents import successfully 
+ECHO is off.
+[6/6] Running unit tests... 
+       Running: python -m unittest discover... 
+...........[TEST-PR2-001] submitRequisition may have timed out — polling status
+....[TEST-PR3-001] publish may have timed out — verifying status
+.[TEST-PR3-001] Response due date reached — 0 of 1 responses received
+[TEST-PR3-001] No supplier responses received — proceeding to award with justification
+..............[TEST-PR4-001] submitForApproval may have timed out — polling
+....[TEST-PR5-001] PO transmit failed — may need manual send
+...........[TEST-PR6-001] 2 units rejected and returned to supplier
+.....[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] PO_DELIVERY_OVERDUE: PO PO-002 delivery overdue by 3 days
+.[TEST-PR7-001] 1 gap(s) detected:
+.[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] RECEIPT_NO_INVOICE: Receipt RCV-003 confirmed 10 days ago — AP invoice not detected
+..
+----------------------------------------------------------------------
+Ran 54 tests in 0.496s
+
+OK
+[OK]   All tests passed 
+ECHO is off.
+============================================================ 
+  SETUP SUMMARY 
+============================================================ 
+  Python:      Python 3.13.4 
+  .env:        C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+  STATUS: ALL GOOD 
+============================================================ 
+ECHO is off.
+Log written to: C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\setup_log.txt 
+       Downloading with Python urllib... 
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import urllib.request; urllib.request.urlretrieve('', r''); print('Download complete')
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\urllib\request.py", line 214, in urlretrieve
+    with contextlib.closing(urlopen(url, data)) as fp:
+                            ~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\urllib\request.py", line 189, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\urllib\request.py", line 473, in open
+    req = Request(fullurl, data)
+  File "C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\urllib\request.py", line 292, in __init__
+    self.full_url = url
+    ^^^^^^^^^^^^^
+  File "C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\urllib\request.py", line 318, in full_url
+    self._parse()
+    ~~~~~~~~~~~^^
+  File "C:\Users\Dasu Baregala\AppData\Local\Programs\Python\Python313\Lib\urllib\request.py", line 347, in _parse
+    raise ValueError("unknown url type: %r" % self.full_url)
+ValueError: unknown url type: ''
+       Python download exit code: 1 
+[FAIL] All download methods failed. Install Redis manually. 
+       URL: https://github.com/tporadowski/redis/releases 
+ECHO is off.
+Log written to: C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\setup_log.txt 
+[OK]   .env exists at C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+[5/6] Verifying agent imports... 
+All 7 agents import OK
+[OK]   All 7 agents import successfully 
+ECHO is off.
+[6/6] Running unit tests... 
+       Running: python -m unittest discover... 
+...........[TEST-PR2-001] submitRequisition may have timed out — polling status
+....[TEST-PR3-001] publish may have timed out — verifying status
+.[TEST-PR3-001] Response due date reached — 0 of 1 responses received
+[TEST-PR3-001] No supplier responses received — proceeding to award with justification
+..............[TEST-PR4-001] submitForApproval may have timed out — polling
+....[TEST-PR5-001] PO transmit failed — may need manual send
+...........[TEST-PR6-001] 2 units rejected and returned to supplier
+.....[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] PO_DELIVERY_OVERDUE: PO PO-002 delivery overdue by 3 days
+.[TEST-PR7-001] 1 gap(s) detected:
+.[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] RECEIPT_NO_INVOICE: Receipt RCV-003 confirmed 10 days ago — AP invoice not detected
+..
+----------------------------------------------------------------------
+Ran 54 tests in 0.381s
+
+OK
+[OK]   All tests passed 
+ECHO is off.
+============================================================ 
+  SETUP SUMMARY 
+============================================================ 
+  Python:      Python 3.13.4 
+  .env:        C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+  STATUS: 1 error(s) - see log for details 
+============================================================ 
+ECHO is off.
+Log written to: C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\setup_log.txt 
+All packages importable
+[OK]   Python packages installed and verified 
+ECHO is off.
+[3/6] Checking Redis... 
+       Found at known path: C:\Program Files\Redis\redis-cli.exe 
+       Redis CLI: C:\Program Files\Redis\redis-cli.exe 
+[OK]   Redis is already running (PONG received) 
+ECHO is off.
+Log written to: C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\setup_log.txt 
+[OK]   .env exists at C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+[5/6] Verifying agent imports... 
+All 7 agents import OK
+[OK]   All 7 agents import successfully 
+ECHO is off.
+[6/6] Running unit tests... 
+       Running: python -m unittest discover... 
+...........[TEST-PR2-001] submitRequisition may have timed out — polling status
+....[TEST-PR3-001] publish may have timed out — verifying status
+.[TEST-PR3-001] Response due date reached — 0 of 1 responses received
+[TEST-PR3-001] No supplier responses received — proceeding to award with justification
+..............[TEST-PR4-001] submitForApproval may have timed out — polling
+....[TEST-PR5-001] PO transmit failed — may need manual send
+...........[TEST-PR6-001] 2 units rejected and returned to supplier
+.....[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] PO_DELIVERY_OVERDUE: PO PO-002 delivery overdue by 3 days
+.[TEST-PR7-001] 1 gap(s) detected:
+.[TEST-PR7-001] 1 gap(s) detected:
+  [HIGH] RECEIPT_NO_INVOICE: Receipt RCV-003 confirmed 10 days ago — AP invoice not detected
+..
+----------------------------------------------------------------------
+Ran 54 tests in 0.390s
+
+OK
+[OK]   All tests passed 
+ECHO is off.
+============================================================ 
+  SETUP SUMMARY 
+============================================================ 
+  Python:      Python 3.13.4 
+  Redis CLI:   C:\Program Files\Redis\redis-cli.exe 
+  .env:        C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\agents\src\.env 
+ECHO is off.
+  STATUS: 1 error(s) - see log for details 
+============================================================ 
+ECHO is off.
+Log written to: C:\Users\Dasu Baregala\Documents\GitHub\oracle-p2p-agents\setup_log.txt 
